@@ -120,6 +120,8 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
         if (ns is not null)
         {
+            sb.AppendLine("using Lanz.MapWeaver.Abstraction;");
+            sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
         }
@@ -128,6 +130,12 @@ public sealed class MapperGenerator : IIncrementalGenerator
         // Nota: Uso il Full Name dell'interfaccia per evitare conflitti o missing usings
         sb.AppendLine($"    public partial class {className} : global::Lanz.MapWeaver.Abstraction.IMapper");
         sb.AppendLine("    {");
+        sb.AppendLine("        private readonly IServiceProvider _sp;");
+        sb.AppendLine();
+        sb.AppendLine($"        public {className}(IServiceProvider sp)"); // Constructor injection
+        sb.AppendLine("        {");
+        sb.AppendLine("            _sp = sp;");
+        sb.AppendLine("        }");
 
         // 1. Generazione dei metodi specifici (Typed Methods)
         foreach (var method in mapper.Methods)
@@ -150,10 +158,22 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
             foreach (var dp in dstProps)
             {
-                var sp = srcProps.FirstOrDefault(p => p.Name == dp.Name && SymbolEqualityComparer.Default.Equals(p.Type, dp.Type));
+                var sp = srcProps.FirstOrDefault(p => p.Name == dp.Name);
                 if (sp is not null)
                 {
-                    sb.AppendLine($"            dest.{dp.Name} = source.{sp.Name};");
+                    if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
+                        sb.AppendLine($"            dest.{dp.Name} = source.{sp.Name};");
+                    }
+                    else if (!IsPrimitiveOrString(sp.Type) && !IsCollection(sp.Type))
+                    {
+                        var destType = dp.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+                        sb.AppendLine($"            if (source.{sp.Name} is not null)");
+                        sb.AppendLine($"            {{");
+
+                        sb.AppendLine($"                dest.{dp.Name} = _sp.GetRequiredService<IMapper>().Map<{destType}>(source.{sp.Name});");
+                        sb.AppendLine($"            }}");
+                    }
                 }
             }
 
@@ -264,10 +284,6 @@ public sealed class MapperGenerator : IIncrementalGenerator
         sb.AppendLine("            var dstType = typeof(TDestination);");
         sb.AppendLine();
 
-        // Genera un IF gigante che controlla TUTTI i metodi di TUTTI i mapper
-        // Esempio: if (srcType == typeof(User) && dstType == typeof(UserDto)) 
-        //              return _serviceProvider.GetRequiredService<MyProfile>().Map(source);
-
         foreach (var mapper in mappers)
         {
             var mapperType = mapper.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -279,8 +295,6 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
                 sb.AppendLine($"            if (srcType == typeof({srcFull}) && dstType == typeof({dstFull}))");
                 sb.AppendLine("            {");
-                // Recupera il profilo specifico dal DI container e chiama il suo metodo tipizzato (tramite cast a IMapper per semplicità o reflection-free dispatch)
-                // Poiché i profili implementano IMapper, possiamo castarli e chiamare Map
                 sb.AppendLine($"                var profile = _serviceProvider.GetRequiredService<{mapperType}>();");
                 sb.AppendLine($"                return ((IMapper)profile).Map<TDestination>(source);");
                 sb.AppendLine("            }");
@@ -291,7 +305,6 @@ public sealed class MapperGenerator : IIncrementalGenerator
         sb.AppendLine("            throw new InvalidOperationException($\"No mapping configuration found for {srcType.Name} to {dstType.Name} in any profile.\");");
         sb.AppendLine("        }");
 
-        // Altri metodi dell'interfaccia IMapper che delegano al metodo principale
         sb.AppendLine();
         sb.AppendLine("        public TDestination Map<TSource, TDestination>(TSource source)");
         sb.AppendLine("            => Map<TDestination>((object)source!);");
@@ -326,6 +339,19 @@ public sealed class MapperGenerator : IIncrementalGenerator
         context.AddSource("MapWeaverOrchestrator.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
+    private static bool IsPrimitiveOrString(ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol.SpecialType == SpecialType.System_String) return true;
 
+        // Controlla se è un tipo primitivo (int, bool, double, etc.) o enum
+        return typeSymbol.IsValueType && (typeSymbol.SpecialType != SpecialType.None || typeSymbol.TypeKind == TypeKind.Enum);
+    }
+
+    private static bool IsCollection(ITypeSymbol type)
+    {
+        if (type.SpecialType == SpecialType.System_String) return false;
+
+        return type.AllInterfaces.Any(i => i.Name == "IEnumerable") || type is IArrayTypeSymbol;
+    }
 
 }

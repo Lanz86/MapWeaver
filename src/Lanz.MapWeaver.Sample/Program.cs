@@ -6,7 +6,7 @@ using Lanz.MapWeaver.Sample.Entities;
 using Microsoft.Extensions.DependencyInjection;
 
 Console.WriteLine("Hello, World!");
-var user = new User { Id = 1, FirstName = "Antonio", LastName = "Lanzolla" };
+var user = new User { Id = 1, FirstName = "Antonio", LastName = "Lanzolla", HomeAddress = new Address { Street = "Via Roma", City = "Roma" } };
 
 var services = new ServiceCollection();
 services.AddMapWeaver();
@@ -17,4 +17,4 @@ var mapper = provider.GetRequiredService<IMapper>();
 // 3. Chiamata generica
 UserDto dto = mapper.Map<UserDto>(user);
 
-Console.WriteLine($"UserDto: Id={dto.Id}, FirstName={dto.FirstName}, LastName={dto.LastName}");
+Console.WriteLine($"UserDto: Id={dto.Id}, FirstName={dto.FirstName}, LastName={dto.LastName}, HomeAddress={dto.HomeAddress?.Street}");
