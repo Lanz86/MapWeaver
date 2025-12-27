@@ -8,6 +8,8 @@ namespace Lanz.MapWeaver.Sample.Dtos {
         public int Id { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
+
+        public AddressDto? HomeAddress { get; set; }
     }
 
     [GenerateMapper]

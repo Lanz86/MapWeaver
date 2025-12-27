@@ -10,6 +10,7 @@
 	  <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
 	  <OutputItemType>Analyzer</OutputItemType>
 	  <IncludeBuildOutput>false</IncludeBuildOutput>
+	  <IsRoslynComponent>true</IsRoslynComponent>
   </PropertyGroup>
 
 	<ItemGroup>
