@@ -9,10 +9,10 @@ public class AddressDto
     public string City { get; set; } = string.Empty;
 }
 
-//[GenerateMapper]
-//public partial class AddressMapper
-//{
-//    [MapTypes(typeof(Address), typeof(AddressDto))]
-//    public partial AddressDto Map(Address source);
+[GenerateMapper]
+public partial class AddressMapper
+{
+    [MapTypes(typeof(Address), typeof(AddressDto))]
+    public partial AddressDto Map(Address source);
 
-//}
+}
