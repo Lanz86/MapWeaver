@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Lanz.MapWeaver.Abstraction/Lanz.MapWeaver.Abstraction.csproj" />
+    <Project Path="src/Lanz.MapWeaver.Generator/Lanz.MapWeaver.Generator.csproj" />
+    <Project Path="src/Lanz.MapWeaver.Sample/Lanz.MapWeaver.Sample.csproj" />
+  </Folder>
+  <Folder Name="/src/tests/">
+    <Project Path="src/tests/Lanz.MapWeaver.Tests/Lanz.MapWeaver.Tests.csproj" />
+  </Folder>
+</Solution>
