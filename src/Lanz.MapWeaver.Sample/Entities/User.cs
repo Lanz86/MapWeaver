@@ -11,4 +11,5 @@ public class User
     public string LastName { get; set; } = string.Empty;
     public Address? HomeAddress { get; set; }
 
+    public List<Address> PreviousAddresses { get; set; } = new List<Address>();
 }

@@ -105,7 +105,7 @@ namespace TestNamespace
         // ReadOnly property should not be mapped
         Assert.DoesNotContain("dest.ReadOnly", mapperSource);
         
-        // Private/Static properties should not be mapped (implicit by not being in srcProps/dstProps logic)
+        // Private/Static properties should not be mapped (implicit in srcProps/dstProps logic)
         // But we can check if they appear in assignment
         Assert.DoesNotContain("source.PrivateProp", mapperSource);
         Assert.DoesNotContain("source.StaticProp", mapperSource);
@@ -208,5 +208,117 @@ namespace TestNamespace
         Assert.Contains("var profile = _serviceProvider.GetRequiredService<global::TestNamespace.AddressMapper>();", extensionSource);
         Assert.Contains("if (srcType == typeof(global::TestNamespace.User) && dstType == typeof(global::TestNamespace.UserDto))", extensionSource);
         Assert.Contains("if (srcType == typeof(global::TestNamespace.Address) && dstType == typeof(global::TestNamespace.AddressDto))", extensionSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateArrayProjectionForCollectionProperties()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+    public class AddressDto { public string City { get; set; } }
+
+    public class User { public Address[] Addresses { get; set; } }
+    public class UserDto { public AddressDto[] Addresses { get; set; } }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("var imapper = _sp.GetRequiredService<IMapper>();", mapperSource);
+        Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item)).ToArray();", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateListProjectionForCollectionProperties()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System.Collections.Generic;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+    public class AddressDto { public string City { get; set; } }
+
+    public class User { public List<Address> Addresses { get; set; } }
+    public class UserDto { public List<AddressDto> Addresses { get; set; } }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item)).ToList();", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateEnumerableProjectionWithoutMaterialization()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System.Collections.Generic;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+    public class AddressDto { public string City { get; set; } }
+
+    public class User { public IEnumerable<Address> Addresses { get; set; } }
+    public class UserDto { public IEnumerable<AddressDto> Addresses { get; set; } }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item));", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldFallbackToListWhenCollectionTypeUnsupported()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System.Collections.Generic;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+    public class AddressDto { public string City { get; set; } }
+
+    public class User { public Queue<Address> Addresses { get; set; } }
+    public class UserDto { public Queue<AddressDto> Addresses { get; set; } }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item)).ToList(); // Warning: Defaulting to List", mapperSource);
     }
 }

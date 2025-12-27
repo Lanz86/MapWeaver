@@ -7,7 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 Console.WriteLine("Hello, World!");
 var user = new User { Id = 1, FirstName = "Antonio", LastName = "Lanzolla", HomeAddress = new Address { Street = "Via Roma", City = "Roma" } };
-
+user.PreviousAddresses.Add(new Address { Street = "Via Milano", City = "Milano" });
+user.PreviousAddresses.Add(new Address { Street = "Via Napoli", City = "Napoli" });
 var services = new ServiceCollection();
 services.AddMapWeaver();
 
@@ -18,3 +19,7 @@ var mapper = provider.GetRequiredService<IMapper>();
 UserDto dto = mapper.Map<UserDto>(user);
 
 Console.WriteLine($"UserDto: Id={dto.Id}, FirstName={dto.FirstName}, LastName={dto.LastName}, HomeAddress={dto.HomeAddress?.Street}");
+foreach (var addr in dto.PreviousAddresses)
+{
+    Console.WriteLine($" Previous Address: {addr.Street}, {addr.City}");
+}
