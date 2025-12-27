@@ -120,6 +120,8 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
         if (ns is not null)
         {
+            sb.AppendLine("using System.Linq;");
+            sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using Lanz.MapWeaver.Abstraction;");
             sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
             sb.AppendLine($"namespace {ns}");
@@ -164,15 +166,45 @@ public sealed class MapperGenerator : IIncrementalGenerator
                     if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
                         sb.AppendLine($"            dest.{dp.Name} = source.{sp.Name};");
                     }
-                    else if (!IsPrimitiveOrString(sp.Type) && !IsCollection(sp.Type))
-                    {
-                        var destType = dp.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    else {
+                        if (TryGetCollectionElementType(sp.Type, out var srcItemType) &&
+                            TryGetCollectionElementType(dp.Type, out var dstItemType))
+                        {
+                            var dstItemTypeName = dstItemType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                            sb.AppendLine("var imapper = _sp.GetRequiredService<IMapper>();");
+                            // Genera: source.Prop?.Select(item => this.Map<DstItem>(item))
+                            sb.Append($"            dest.{dp.Name} = source.{sp.Name}?");
+                            sb.Append($".Select(item => imapper.Map<{dstItemTypeName}>(item))");
 
-                        sb.AppendLine($"            if (source.{sp.Name} is not null)");
-                        sb.AppendLine($"            {{");
+                            if (dp.Type is IArrayTypeSymbol)
+                            {
+                                sb.AppendLine(".ToArray();");
+                            }
+                            else if (dp.Type.Name == "List" || dp.Type.Name == "IList" || dp.Type.Name == "ICollection")
+                            {
+                                sb.AppendLine(".ToList();");
+                            }
+                            else if (dp.Type.Name == "IEnumerable")
+                            {
+                                // IEnumerable basta il Select (che ritorna IEnumerable)
+                                sb.AppendLine(";");
+                            }
+                            else
+                            {
+                                // Fallback (o errore se tipo collezione non supportato es. Queue)
+                                sb.AppendLine(".ToList(); // Warning: Defaulting to List");
+                            }
+                        }
+                        else  if (!IsPrimitiveOrString(sp.Type))
+                        {
+                            var destType = dp.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-                        sb.AppendLine($"                dest.{dp.Name} = _sp.GetRequiredService<IMapper>().Map<{destType}>(source.{sp.Name});");
-                        sb.AppendLine($"            }}");
+                            sb.AppendLine($"            if (source.{sp.Name} is not null)");
+                            sb.AppendLine($"            {{");
+
+                            sb.AppendLine($"                dest.{dp.Name} = _sp.GetRequiredService<IMapper>().Map<{destType}>(source.{sp.Name});");
+                            sb.AppendLine($"            }}");
+                        }
                     }
                 }
             }
@@ -353,5 +385,36 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
         return type.AllInterfaces.Any(i => i.Name == "IEnumerable") || type is IArrayTypeSymbol;
     }
+
+    private static bool TryGetCollectionElementType(ITypeSymbol type, out ITypeSymbol? elementType)
+    {
+        elementType = null;
+
+        if (type.SpecialType == SpecialType.System_String) return false;
+
+        if (type is IArrayTypeSymbol arraySymbol)
+        {
+            elementType = arraySymbol.ElementType;
+            return true;
+        }
+
+        if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
+        {
+            // Controlla se implementa IEnumerable (o è IEnumerable stesso)
+            // Nota: Questo è un check semplificato. Per robustezza dovresti scorrere le interfacce.
+            if (namedType.Name == "IEnumerable" || namedType.AllInterfaces.Any(i => i.Name == "IEnumerable"))
+            {
+                // Prendiamo il primo argomento generico come tipo elemento
+                if (namedType.TypeArguments.Length > 0)
+                {
+                    elementType = namedType.TypeArguments[0];
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
 
 }
