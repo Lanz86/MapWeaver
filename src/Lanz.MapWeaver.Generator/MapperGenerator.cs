@@ -160,6 +160,10 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
             foreach (var dp in dstProps)
             {
+                if(HasAttribute(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapIgnoreAttribute"))
+                {
+                    continue;
+                }
                 var sp = srcProps.FirstOrDefault(p => p.Name == dp.Name);
                 if (sp is not null)
                 {
@@ -416,5 +420,9 @@ public sealed class MapperGenerator : IIncrementalGenerator
         return false;
     }
 
-
+    private static bool HasAttribute(ISymbol symbol, string attributeFullName)
+    {
+        return symbol.GetAttributes()
+            .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName);
+    }
 }

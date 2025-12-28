@@ -112,6 +112,82 @@ namespace TestNamespace
     }
 
     [Fact]
+    public void ShouldSkipDestinationPropertiesMarkedWithMapIgnoreAttribute()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Source
+    {
+        public string Name { get; set; }
+        public string Secret { get; set; }
+    }
+
+    public class Dest
+    {
+        public string Name { get; set; }
+        [MapIgnore]
+        public string Secret { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class MyMapper
+    {
+        [MapTypes(typeof(Source), typeof(Dest))]
+        public partial Dest Map(Source source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class MyMapper"));
+
+        Assert.Contains("dest.Name = source.Name;", mapperSource);
+        Assert.DoesNotContain("dest.Secret", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldNotSkipPropertiesWhenDifferentMapIgnoreAttributeIsUsed()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace Custom
+{
+    [AttributeUsage(AttributeTargets.Property)]
+    public sealed class MapIgnoreAttribute : Attribute { }
+}
+
+namespace TestNamespace
+{
+    public class Source
+    {
+        public string Name { get; set; }
+        public string Secret { get; set; }
+    }
+
+    public class Dest
+    {
+        public string Name { get; set; }
+        [Custom.MapIgnore]
+        public string Secret { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class MyMapper
+    {
+        [MapTypes(typeof(Source), typeof(Dest))]
+        public partial Dest Map(Source source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class MyMapper"));
+
+        Assert.Contains("dest.Secret = source.Secret;", mapperSource);
+    }
+
+    [Fact]
     public void ShouldGenerateNestedMappingCallsForReferenceTypes()
     {
         var source = @"

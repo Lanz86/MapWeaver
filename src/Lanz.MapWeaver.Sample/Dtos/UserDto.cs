@@ -11,6 +11,12 @@ namespace Lanz.MapWeaver.Sample.Dtos {
 
         public AddressDto? HomeAddress { get; set; }
 
+        [MapIgnore]
+        public string ComputedValue => $"{FirstName} {LastName}";
+
+        [MapIgnore]
+        public string? Nickname { get; set; }
+
         public List<AddressDto> PreviousAddresses { get; set; } = new List<AddressDto>();
     }
 
