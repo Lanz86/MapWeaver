@@ -24,8 +24,11 @@ var mapper = provider.GetRequiredService<IMapper>();
 UserDto dto = mapper.Map<UserDto>(user);
 
 Console.WriteLine($"UserDto: Id={dto.Id}, FirstName={dto.FirstName}, LastName={dto.LastName}, HomeAddress={dto.HomeAddress?.Street}");
+Console.WriteLine($" Name: {dto.Name}");
+Console.WriteLine($" Surname: {dto.Surname}");
 Console.WriteLine($" ComputedValue (should be empty): '{dto.ComputedValue}'");
 Console.WriteLine($"NickName: {dto.Nickname}");
+Console.WriteLine($" City: {dto.City}");
 foreach (var addr in dto.PreviousAddresses)
 {
     Console.WriteLine($" Previous Address: {addr.Street}, {addr.City}");

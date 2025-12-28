@@ -206,7 +206,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
                 var customSource = GetMapPropertySource(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapPropertyAttribute");
 
-                if (!string.IsNullOrEmpty(customSource))
+                if(!string.IsNullOrEmpty(customSource))
                 {
                     srcPropName = customSource!;
                 }
@@ -215,8 +215,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 if (sp is not null)
                 {
                     string accessExpression = BuildSafeAccessExpression("source", srcPropName);
-                    if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type))
-                    {
+                    if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
                         sb.AppendLine($"            dest.{dp.Name} = {accessExpression};");
                     }
                     else
@@ -481,8 +480,8 @@ public sealed class MapperGenerator : IIncrementalGenerator
     {
         var attr = symbol.GetAttributes()
             .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == attributeFullName);
-
-        if (attr is null) return null;
+        
+        if(attr is null) return null;
 
         if (attr.ConstructorArguments.Length > 0)
         {

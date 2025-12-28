@@ -110,6 +110,29 @@ public class UserDto
 }
 ```
 
+## Explicit Member Mapping
+
+By default Lanz.MapWeaver maps properties with the same name and type. You can customize individual destination members with attributes from `Lanz.MapWeaver.Abstraction.Attributes`:
+
+```csharp
+public class UserDto
+{
+    public int Id { get; set; }
+
+    [MapProperty("FirstName")]
+    public string Name { get; set; }
+
+    [MapProperty("HomeAddress.City")]
+    public string City { get; set; }
+
+    [MapIgnore]
+    public string? Nickname { get; set; }
+}
+```
+
+- `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
+- `[MapIgnore]` prevents the destination property from being assigned.
+
 - `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
 - `[MapIgnore]` prevents the destination property from being assigned.
 
@@ -127,9 +150,9 @@ The generator produces both `Map(User source)` and the reverse `MapReverse(UserD
 ## Mapping Rules
 
 The generator follows these simple rules:
-- **Property Matching**: Maps properties with the **same name** and **same type**.
+- **Property Matching**: Maps properties with the **same name** and **same type** unless overridden by `[MapProperty]`.
 - **Public Properties**: Only maps `public` properties.
-- **Ignored Members**: Ignores `static`, `read-only`, and `private` properties.
+- **Ignored Members**: Ignores `static`, `read-only`, and `private` properties, or anything annotated with `[MapIgnore]`.
 - **Missing Properties**: Properties present in one side but missing in the other are ignored (no exception is thrown).
 
 ## Project Structure
