@@ -10,6 +10,8 @@ Lanz.MapWeaver is a high-performance .NET source generator that automatically cr
 - **Unified Interface**: Implements `IMapper` for consistent usage.
 - **Partial Classes & Methods**: Integrates seamlessly with your existing code structure.
 - **Zero Boilerplate**: Just define the method signature, and the body is generated.
+- **Explicit Member Mapping**: Use `[MapProperty]` and `[MapIgnore]` to override member matching rules.
+- **Reverse Mapping**: Flip mappings in both directions by setting `Reverse = true` on `[MapTypes]`.
 
 ## Getting Started
 
@@ -41,7 +43,7 @@ using Lanz.MapWeaver.Abstraction.Attributes;
 [GenerateMapper]
 public partial class UserMapper
 {
-    [MapTypes(typeof(User), typeof(UserDto))]
+    [MapTypes(typeof(User), typeof(UserDto), Reverse = true)]
     public partial UserDto Map(User source);
 }
 ```
@@ -87,6 +89,40 @@ var dto = mapper.Map(user);
 // Or use the generic IMapper interface
 var dtoGeneric = mapper.Map<UserDto>(user);
 ```
+
+## Explicit Member Mapping
+
+By default Lanz.MapWeaver maps properties with the same name and type. You can customize individual destination members with attributes from `Lanz.MapWeaver.Abstraction.Attributes`:
+
+```csharp
+public class UserDto
+{
+    public int Id { get; set; }
+
+    [MapProperty("FirstName")]
+    public string Name { get; set; }
+
+    [MapProperty("HomeAddress.City")]
+    public string City { get; set; }
+
+    [MapIgnore]
+    public string? Nickname { get; set; }
+}
+```
+
+- `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
+- `[MapIgnore]` prevents the destination property from being assigned.
+
+## Reverse Mapping
+
+Add `Reverse = true` (or pass `true` as the third constructor argument) on any `[MapTypes]` declaration to emit the inverse mapping method automatically:
+
+```csharp
+[MapTypes(typeof(User), typeof(UserDto), reverse: true)]
+public partial UserDto Map(User source);
+```
+
+The generator produces both `Map(User source)` and the reverse `MapReverse(UserDto source)` (through the orchestrator) so the same mapper covers round-trips with no extra boilerplate.
 
 ## Mapping Rules
 

@@ -12,7 +12,7 @@ public class AddressDto
 [GenerateMapper]
 public partial class AddressMapper
 {
-    [MapTypes(typeof(Address), typeof(AddressDto))]
+    [MapTypes(typeof(Address), typeof(AddressDto), true)]
     public partial AddressDto Map(Address source);
 
 }

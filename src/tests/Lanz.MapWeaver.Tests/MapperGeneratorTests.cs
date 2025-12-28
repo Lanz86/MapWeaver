@@ -397,4 +397,143 @@ namespace TestNamespace
 
         Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item)).ToList(); // Warning: Defaulting to List", mapperSource);
     }
+
+    [Fact]
+    public void ShouldMapDestinationPropertiesMarkedWithMapPropertyAttributePaths()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Country { public string Name { get; set; } }
+    public class Address { public Country Country { get; set; } }
+
+    public class User
+    {
+        public Address Address { get; set; }
+    }
+
+    public class UserDto
+    {
+        [MapProperty(""Address.Country.Name"")]
+        public string CountryName { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("dest.CountryName = source.Address?.Country?.Name;", mapperSource);
+        Assert.DoesNotContain("dest.CountryName = source.CountryName;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldNotGenerateAssignmentWhenMapPropertyPathCannotBeResolved()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+
+    public class User { public Address Address { get; set; } }
+
+    public class UserDto
+    {
+        [MapProperty(""Address.Country.Name"")]
+        public string CountryName { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.DoesNotContain("dest.CountryName =", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateReverseMethodWithoutSuffixWhenReverseFlagSet()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto), true)]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("public partial global::TestNamespace.UserDto Map(global::TestNamespace.User source)", mapperSource);
+        Assert.Contains("public global::TestNamespace.User Map(global::TestNamespace.UserDto source)", mapperSource);
+        Assert.DoesNotContain("MapReverse", mapperSource);
+
+        var orchestratorSource = generatedSources.Single(s => s.Contains("MapWeaverServiceCollectionExtensions"));
+        Assert.Contains("if (srcType == typeof(global::TestNamespace.UserDto) && dstType == typeof(global::TestNamespace.User))", orchestratorSource);
+        Assert.DoesNotContain("MapReverse", orchestratorSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateReverseMethodWhenReverseNamedArgumentIsUsed()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto), Reverse = true)]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("public global::TestNamespace.User Map(global::TestNamespace.UserDto source)", mapperSource);
+        Assert.DoesNotContain("MapReverse", mapperSource);
+
+        var orchestratorSource = generatedSources.Single(s => s.Contains("MapWeaverServiceCollectionExtensions"));
+        Assert.Contains("if (srcType == typeof(global::TestNamespace.UserDto) && dstType == typeof(global::TestNamespace.User))", orchestratorSource);
+    }
 }
