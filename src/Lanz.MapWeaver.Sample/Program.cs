@@ -6,7 +6,12 @@ using Lanz.MapWeaver.Sample.Entities;
 using Microsoft.Extensions.DependencyInjection;
 
 Console.WriteLine("Hello, World!");
-var user = new User { Id = 1, FirstName = "Antonio", LastName = "Lanzolla", HomeAddress = new Address { Street = "Via Roma", City = "Roma" } };
+var user = new User { Id = 1, 
+                        FirstName = "Antonio", 
+                        LastName = "Lanzolla",
+                        HomeAddress = new Address { Street = "Via Roma", City = "Roma" },
+                        Nickname = "Lanz"
+};
 user.PreviousAddresses.Add(new Address { Street = "Via Milano", City = "Milano" });
 user.PreviousAddresses.Add(new Address { Street = "Via Napoli", City = "Napoli" });
 var services = new ServiceCollection();
@@ -19,6 +24,8 @@ var mapper = provider.GetRequiredService<IMapper>();
 UserDto dto = mapper.Map<UserDto>(user);
 
 Console.WriteLine($"UserDto: Id={dto.Id}, FirstName={dto.FirstName}, LastName={dto.LastName}, HomeAddress={dto.HomeAddress?.Street}");
+Console.WriteLine($" ComputedValue (should be empty): '{dto.ComputedValue}'");
+Console.WriteLine($"NickName: {dto.Nickname}");
 foreach (var addr in dto.PreviousAddresses)
 {
     Console.WriteLine($" Previous Address: {addr.Street}, {addr.City}");
