@@ -13,7 +13,7 @@ namespace Lanz.MapWeaver.Sample.Dtos {
         public string Name { get; set; } = string.Empty;
         [MapProperty("LastName")]
         public string Surname { get; set; } = string.Empty;
-
+        public string FullName { get; set; }     = string.Empty;
         public AddressDto? HomeAddress { get; set; }
 
         [MapProperty("HomeAddress.City")]
@@ -26,6 +26,8 @@ namespace Lanz.MapWeaver.Sample.Dtos {
         public string? Nickname { get; set; }
 
         public List<AddressDto> PreviousAddresses { get; set; } = new List<AddressDto>();
+
+        public string BeforeMappingNote { get; set; } = string.Empty;
     }
 
     [GenerateMapper]
@@ -34,5 +36,15 @@ namespace Lanz.MapWeaver.Sample.Dtos {
         [MapTypes(typeof(User), typeof(UserDto), true)]
         public partial UserDto Map(User source);
 
+        partial void AfterMap(User source, UserDto dest)
+        {
+            dest.FullName = $"{source.FirstName} {source.LastName}";
+
+        }
+  
+        partial void BeforeMap(User source, UserDto dest)
+        {
+            dest.BeforeMappingNote = "Mapped by UserMapper " + source.FirstName;
+        }
     }
 }

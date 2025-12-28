@@ -464,4 +464,73 @@ namespace TestNamespace
 
         Assert.DoesNotContain("dest.CountryName =", mapperSource);
     }
+
+    [Fact]
+    public void ShouldGenerateBeforeAndAfterHooksForForwardMappings()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("partial void BeforeMap(global::TestNamespace.User source, global::TestNamespace.UserDto dest);", mapperSource);
+        Assert.Contains("partial void AfterMap(global::TestNamespace.User source, global::TestNamespace.UserDto dest);", mapperSource);
+        Assert.Contains("BeforeMap(source, dest);", mapperSource);
+        Assert.Contains("AfterMap(source, dest);", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateBeforeAndAfterHooksForReverseMappings()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto), true)]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("partial void BeforeMap(global::TestNamespace.UserDto source, global::TestNamespace.User dest);", mapperSource);
+        Assert.Contains("partial void AfterMap(global::TestNamespace.UserDto source, global::TestNamespace.User dest);", mapperSource);
+        Assert.Contains("public global::TestNamespace.User Map(global::TestNamespace.UserDto source)", mapperSource);
+        Assert.Contains("BeforeMap(source, dest);", mapperSource);
+        Assert.Contains("AfterMap(source, dest);", mapperSource);
+    }
 }

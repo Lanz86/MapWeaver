@@ -177,16 +177,20 @@ public sealed class MapperGenerator : IIncrementalGenerator
             method.MethodName = method.IsReverse ? method.MethodName.Replace("Reverse", string.Empty) : method.MethodName;
             if (method.IsReverse)
             {
+                sb.AppendLine($"        partial void BeforeMap({srcName} source, {dstName} dest);"); // Nota i tipi invertiti
+                sb.AppendLine($"        partial void AfterMap({srcName} source, {dstName} dest);");
                 sb.AppendLine($"        public {dstName} {method.MethodName}({srcName} source)");
             }
             else
             {
+                sb.AppendLine($"        partial void BeforeMap({srcName} source, {dstName} dest);");
+                sb.AppendLine($"        partial void AfterMap({srcName} source, {dstName} dest);");
                 sb.AppendLine($"        public partial {dstName} {method.MethodName}({srcName} source)");
             }
             sb.AppendLine("        {");
             sb.AppendLine("            if (source is null) return default!;");
             sb.AppendLine($"            var dest = new {dstName}();");
-
+            sb.AppendLine("             BeforeMap(source, dest);");
             var srcProps = method.SourceType.GetMembers()
             .OfType<IPropertySymbol>()
             .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
@@ -263,6 +267,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
             }
 
             sb.AppendLine();
+            sb.AppendLine($"            AfterMap(source, dest);");
             sb.AppendLine("            return dest;");
             sb.AppendLine("        }");
 

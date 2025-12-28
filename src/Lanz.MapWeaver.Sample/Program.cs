@@ -29,6 +29,8 @@ Console.WriteLine($" Surname: {dto.Surname}");
 Console.WriteLine($" ComputedValue (should be empty): '{dto.ComputedValue}'");
 Console.WriteLine($"NickName: {dto.Nickname}");
 Console.WriteLine($" City: {dto.City}");
+Console.WriteLine($" BeforeMappingNote: {dto.BeforeMappingNote}");
+Console.WriteLine($" FullName: {dto.FullName}");
 foreach (var addr in dto.PreviousAddresses)
 {
     Console.WriteLine($" Previous Address: {addr.Street}, {addr.City}");
