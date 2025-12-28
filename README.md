@@ -12,6 +12,7 @@ Lanz.MapWeaver is a high-performance .NET source generator that automatically cr
 - **Zero Boilerplate**: Just define the method signature, and the body is generated.
 - **Explicit Member Mapping**: Use `[MapProperty]` and `[MapIgnore]` to override member matching rules.
 - **Reverse Mapping**: Flip mappings in both directions by setting `Reverse = true` on `[MapTypes]`.
+- **Lifecycle Hooks**: Override generated `BeforeMap`/`AfterMap` partial methods to run custom logic around the mapping.
 
 ## Getting Started
 
@@ -90,25 +91,30 @@ var dto = mapper.Map(user);
 var dtoGeneric = mapper.Map<UserDto>(user);
 ```
 
-## Explicit Member Mapping
+## Before/After Hooks
 
-By default Lanz.MapWeaver maps properties with the same name and type. You can customize individual destination members with attributes from `Lanz.MapWeaver.Abstraction.Attributes`:
+Every generated method declares two optional partial methods, `BeforeMap` and `AfterMap`, so you can plug into the mapping lifecycle without reflection. Override either method in your partial class to prepare the destination or finalize it after the generated property assignments. Hooks are generated for reverse mappings as well (source and destination parameters swap when `Reverse = true`).
 
 ```csharp
-public class UserDto
+[GenerateMapper]
+public partial class UserMapper
 {
-    public int Id { get; set; }
+    [MapTypes(typeof(User), typeof(UserDto))]
+    public partial UserDto Map(User source);
 
-    [MapProperty("FirstName")]
-    public string Name { get; set; }
+    partial void BeforeMap(User source, UserDto destination)
+    {
+        destination.BeforeMappingNote = $"Mapping {source.FirstName}";
+    }
 
-    [MapProperty("HomeAddress.City")]
-    public string City { get; set; }
-
-    [MapIgnore]
-    public string? Nickname { get; set; }
+    partial void AfterMap(User source, UserDto destination)
+    {
+        destination.FullName = $"{source.FirstName} {source.LastName}";
+    }
 }
 ```
+
+Use these hooks for calculated fields, validation, logging, or any logic that does not belong in the DTO itself.
 
 ## Explicit Member Mapping
 
@@ -133,8 +139,6 @@ public class UserDto
 - `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
 - `[MapIgnore]` prevents the destination property from being assigned.
 
-- `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
-- `[MapIgnore]` prevents the destination property from being assigned.
 
 ## Reverse Mapping
 
