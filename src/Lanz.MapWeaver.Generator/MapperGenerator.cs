@@ -78,7 +78,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, mapTypesAttrSymbol))
                     continue;
 
-                if (attr.ConstructorArguments.Length != 2)
+                if (attr.ConstructorArguments.Length < 2)
                     continue;
 
                 if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol src)
@@ -86,12 +86,42 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 if (attr.ConstructorArguments[1].Value is not INamedTypeSymbol dst)
                     continue;
 
+                bool reverse = false;
+                if (attr.ConstructorArguments.Length >= 3 &&
+                    attr.ConstructorArguments[2].Value is bool reverseCtorValue)
+                {
+                    reverse = reverseCtorValue;
+                }
+
+                if (!reverse && attr.NamedArguments.Length > 0)
+                {
+                    foreach (var namedArg in attr.NamedArguments)
+                    {
+                        if (namedArg.Key == "Reverse" && namedArg.Value.Value is bool reverseNamedValue)
+                        {
+                            reverse = reverseNamedValue;
+                            break;
+                        }
+                    }
+                }
+
                 methods.Add(new MapMethodInfo
                 {
                     SourceType = src,
                     TargetType = dst,
-                    MethodName = member.Name
+                    MethodName = member.Name,
                 });
+
+                if (reverse)
+                {
+                    methods.Add(new MapMethodInfo
+                    {
+                        SourceType = dst,
+                        TargetType = src,
+                        MethodName = member.Name + "Reverse",
+                        IsReverse = reverse
+                    });
+                }
             }
         }
 
@@ -144,15 +174,22 @@ public sealed class MapperGenerator : IIncrementalGenerator
         {
             var srcName = method.SourceType.ToDisplayString(symbolDisplayFormat);
             var dstName = method.TargetType.ToDisplayString(symbolDisplayFormat);
-
-            sb.AppendLine($"        public partial {dstName} {method.MethodName}({srcName} source)");
+            method.MethodName = method.IsReverse ? method.MethodName.Replace("Reverse", string.Empty) : method.MethodName;
+            if (method.IsReverse)
+            {
+                sb.AppendLine($"        public {dstName} {method.MethodName}({srcName} source)");
+            }
+            else
+            {
+                sb.AppendLine($"        public partial {dstName} {method.MethodName}({srcName} source)");
+            }
             sb.AppendLine("        {");
             sb.AppendLine("            if (source is null) return default!;");
             sb.AppendLine($"            var dest = new {dstName}();");
 
             var srcProps = method.SourceType.GetMembers()
-                .OfType<IPropertySymbol>()
-                .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
+            .OfType<IPropertySymbol>()
+            .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
 
             var dstProps = method.TargetType.GetMembers()
                 .OfType<IPropertySymbol>()
@@ -160,7 +197,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
             foreach (var dp in dstProps)
             {
-                if(HasAttribute(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapIgnoreAttribute"))
+                if (HasAttribute(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapIgnoreAttribute"))
                 {
                     continue;
                 }
@@ -181,7 +218,8 @@ public sealed class MapperGenerator : IIncrementalGenerator
                     if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
                         sb.AppendLine($"            dest.{dp.Name} = {accessExpression};");
                     }
-                    else {
+                    else
+                    {
                         if (TryGetCollectionElementType(sp.Type, out var srcItemType) &&
                             TryGetCollectionElementType(dp.Type, out var dstItemType))
                         {
@@ -210,7 +248,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
                                 sb.AppendLine(".ToList(); // Warning: Defaulting to List");
                             }
                         }
-                        else  if (!IsPrimitiveOrString(sp.Type))
+                        else if (!IsPrimitiveOrString(sp.Type))
                         {
                             var destType = dp.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
@@ -227,6 +265,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
             sb.AppendLine();
             sb.AppendLine("            return dest;");
             sb.AppendLine("        }");
+
         }
 
         // 2. Generazione dei metodi generici di IMapper (Dispatch logic)

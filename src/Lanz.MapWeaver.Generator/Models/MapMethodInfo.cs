@@ -12,6 +12,7 @@ public sealed class MapMethodInfo
     public INamedTypeSymbol SourceType { get; set; }
     public INamedTypeSymbol TargetType { get; set; }
     public string MethodName { get; set; }
+    public bool IsReverse { get; set; } = false;
 }
 
 /// <summary>

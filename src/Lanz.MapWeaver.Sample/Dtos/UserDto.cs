@@ -31,7 +31,7 @@ namespace Lanz.MapWeaver.Sample.Dtos {
     [GenerateMapper]
     public partial class UserMapper
     {
-        [MapTypes(typeof(User), typeof(UserDto))]
+        [MapTypes(typeof(User), typeof(UserDto), true)]
         public partial UserDto Map(User source);
 
     }

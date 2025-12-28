@@ -33,3 +33,7 @@ foreach (var addr in dto.PreviousAddresses)
 {
     Console.WriteLine($" Previous Address: {addr.Street}, {addr.City}");
 }
+
+Console.WriteLine("Mapping back to User entity...");
+User mappedUser = mapper.Map<User>(dto);
+Console.WriteLine($"Mapped User: Id={mappedUser.Id}, FirstName={mappedUser.FirstName}, LastName={mappedUser.LastName}, HomeAddress={mappedUser.HomeAddress?.Street}");
