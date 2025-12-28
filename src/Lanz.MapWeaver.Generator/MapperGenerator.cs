@@ -164,11 +164,22 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 {
                     continue;
                 }
-                var sp = srcProps.FirstOrDefault(p => p.Name == dp.Name);
+
+                string srcPropName = dp.Name;
+
+                var customSource = GetMapPropertySource(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapPropertyAttribute");
+
+                if(!string.IsNullOrEmpty(customSource))
+                {
+                    srcPropName = customSource!;
+                }
+
+                var sp = TryResolvePropertyPath(method.SourceType, srcPropName);
                 if (sp is not null)
                 {
+                    string accessExpression = BuildSafeAccessExpression("source", srcPropName);
                     if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
-                        sb.AppendLine($"            dest.{dp.Name} = source.{sp.Name};");
+                        sb.AppendLine($"            dest.{dp.Name} = {accessExpression};");
                     }
                     else {
                         if (TryGetCollectionElementType(sp.Type, out var srcItemType) &&
@@ -425,4 +436,61 @@ public sealed class MapperGenerator : IIncrementalGenerator
         return symbol.GetAttributes()
             .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName);
     }
+
+    private static string? GetMapPropertySource(ISymbol symbol, string attributeFullName)
+    {
+        var attr = symbol.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == attributeFullName);
+        
+        if(attr is null) return null;
+
+        if (attr.ConstructorArguments.Length > 0)
+        {
+            return attr.ConstructorArguments[0].Value?.ToString() ?? string.Empty;
+        }
+        return null;
+    }
+
+    private static IPropertySymbol? TryResolvePropertyPath(ITypeSymbol rootType, string path)
+    {
+        var parts = path.Split('.');
+        ITypeSymbol currentType = rootType;
+        IPropertySymbol? currentProp = null;
+
+        foreach (var part in parts)
+        {
+            // Cerca la proprietà nel tipo corrente
+            currentProp = currentType.GetMembers()
+                .OfType<IPropertySymbol>()
+                .FirstOrDefault(p => p.Name == part && p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
+
+            if (currentProp == null) return null; // Path interrotto
+
+            currentType = currentProp.Type;
+        }
+
+        return currentProp; // Ritorna l'ultima proprietà della catena (es. City)
+    }
+
+    private static string BuildSafeAccessExpression(string rootParamName, string path)
+    {
+        var parts = path.Split('.');
+        if (parts.Length == 1) return $"{rootParamName}.{parts[0]}";
+
+        var sb = new StringBuilder(rootParamName);
+        for (int i = 0; i < parts.Length; i++)
+        {
+            sb.Append($".{parts[i]}");
+            // Aggiungi null conditional operator '?' per tutti tranne l'ultimo
+            // (o anche per l'ultimo se la proprietà finale è nullable e serve)
+            // Per sicurezza, lo mettiamo su tutti i nodi intermedi.
+            if (i < parts.Length - 1)
+            {
+                sb.Append("?");
+            }
+        }
+        return sb.ToString();
+    }
+
+
 }

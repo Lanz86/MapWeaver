@@ -9,7 +9,15 @@ namespace Lanz.MapWeaver.Sample.Dtos {
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
 
+        [MapProperty("FirstName")]
+        public string Name { get; set; } = string.Empty;
+        [MapProperty("LastName")]
+        public string Surname { get; set; } = string.Empty;
+
         public AddressDto? HomeAddress { get; set; }
+
+        [MapProperty("HomeAddress.City")]
+        public string City { get; set; } = string.Empty;
 
         [MapIgnore]
         public string ComputedValue => $"{FirstName} {LastName}";
