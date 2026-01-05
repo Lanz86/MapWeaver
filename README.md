@@ -10,6 +10,9 @@ Lanz.MapWeaver is a high-performance .NET source generator that automatically cr
 - **Unified Interface**: Implements `IMapper` for consistent usage.
 - **Partial Classes & Methods**: Integrates seamlessly with your existing code structure.
 - **Zero Boilerplate**: Just define the method signature, and the body is generated.
+- **Explicit Member Mapping**: Use `[MapProperty]` and `[MapIgnore]` to override member matching rules.
+- **Reverse Mapping**: Flip mappings in both directions by setting `Reverse = true` on `[MapTypes]`.
+- **Lifecycle Hooks**: Override generated `BeforeMap`/`AfterMap` partial methods to run custom logic around the mapping.
 
 ## Getting Started
 
@@ -41,7 +44,7 @@ using Lanz.MapWeaver.Abstraction.Attributes;
 [GenerateMapper]
 public partial class UserMapper
 {
-    [MapTypes(typeof(User), typeof(UserDto))]
+    [MapTypes(typeof(User), typeof(UserDto), Reverse = true)]
     public partial UserDto Map(User source);
 }
 ```
@@ -88,12 +91,72 @@ var dto = mapper.Map(user);
 var dtoGeneric = mapper.Map<UserDto>(user);
 ```
 
+## Before/After Hooks
+
+Every generated method declares two optional partial methods, `BeforeMap` and `AfterMap`, so you can plug into the mapping lifecycle without reflection. Override either method in your partial class to prepare the destination or finalize it after the generated property assignments. Hooks are generated for reverse mappings as well (source and destination parameters swap when `Reverse = true`).
+
+```csharp
+[GenerateMapper]
+public partial class UserMapper
+{
+    [MapTypes(typeof(User), typeof(UserDto))]
+    public partial UserDto Map(User source);
+
+    partial void BeforeMap(User source, UserDto destination)
+    {
+        destination.BeforeMappingNote = $"Mapping {source.FirstName}";
+    }
+
+    partial void AfterMap(User source, UserDto destination)
+    {
+        destination.FullName = $"{source.FirstName} {source.LastName}";
+    }
+}
+```
+
+Use these hooks for calculated fields, validation, logging, or any logic that does not belong in the DTO itself.
+
+## Explicit Member Mapping
+
+By default Lanz.MapWeaver maps properties with the same name and type. You can customize individual destination members with attributes from `Lanz.MapWeaver.Abstraction.Attributes`:
+
+```csharp
+public class UserDto
+{
+    public int Id { get; set; }
+
+    [MapProperty("FirstName")]
+    public string Name { get; set; }
+
+    [MapProperty("HomeAddress.City")]
+    public string City { get; set; }
+
+    [MapIgnore]
+    public string? Nickname { get; set; }
+}
+```
+
+- `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
+- `[MapIgnore]` prevents the destination property from being assigned.
+
+
+## Reverse Mapping
+
+Add `Reverse = true` (or pass `true` as the third constructor argument) on any `[MapTypes]` declaration to emit the inverse mapping method automatically:
+
+```csharp
+[MapTypes(typeof(User), typeof(UserDto), reverse: true)]
+public partial UserDto Map(User source);
+```
+
+The generator produces both `Map(User source)` and the reverse `MapReverse(UserDto source)` (through the orchestrator) so the same mapper covers round-trips with no extra boilerplate.
+
 ## Mapping Rules
 
 The generator follows these simple rules:
-- **Property Matching**: Maps properties with the **same name** and **same type**.
+- **Property Matching**: Maps properties with the **same name** and **same type** unless overridden by `[MapProperty]`.
 - **Public Properties**: Only maps `public` properties.
-- **Ignored Members**: Ignores `static`, `read-only`, and `private` properties.
+- **Ignored Members**: Ignores `static`, `read-only`, and `private` properties, or anything annotated with `[MapIgnore]`.
 - **Missing Properties**: Properties present in one side but missing in the other are ignored (no exception is thrown).
 
 ## Project Structure

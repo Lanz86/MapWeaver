@@ -10,6 +10,7 @@ public class User
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public Address? HomeAddress { get; set; }
+    public string? Nickname { get; set; }
 
     public List<Address> PreviousAddresses { get; set; } = new List<Address>();
 }

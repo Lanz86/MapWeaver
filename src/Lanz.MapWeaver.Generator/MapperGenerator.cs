@@ -78,7 +78,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, mapTypesAttrSymbol))
                     continue;
 
-                if (attr.ConstructorArguments.Length != 2)
+                if (attr.ConstructorArguments.Length < 2)
                     continue;
 
                 if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol src)
@@ -86,12 +86,42 @@ public sealed class MapperGenerator : IIncrementalGenerator
                 if (attr.ConstructorArguments[1].Value is not INamedTypeSymbol dst)
                     continue;
 
+                bool reverse = false;
+                if (attr.ConstructorArguments.Length >= 3 &&
+                    attr.ConstructorArguments[2].Value is bool reverseCtorValue)
+                {
+                    reverse = reverseCtorValue;
+                }
+
+                if (!reverse && attr.NamedArguments.Length > 0)
+                {
+                    foreach (var namedArg in attr.NamedArguments)
+                    {
+                        if (namedArg.Key == "Reverse" && namedArg.Value.Value is bool reverseNamedValue)
+                        {
+                            reverse = reverseNamedValue;
+                            break;
+                        }
+                    }
+                }
+
                 methods.Add(new MapMethodInfo
                 {
                     SourceType = src,
                     TargetType = dst,
-                    MethodName = member.Name
+                    MethodName = member.Name,
                 });
+
+                if (reverse)
+                {
+                    methods.Add(new MapMethodInfo
+                    {
+                        SourceType = dst,
+                        TargetType = src,
+                        MethodName = member.Name + "Reverse",
+                        IsReverse = reverse
+                    });
+                }
             }
         }
 
@@ -144,15 +174,26 @@ public sealed class MapperGenerator : IIncrementalGenerator
         {
             var srcName = method.SourceType.ToDisplayString(symbolDisplayFormat);
             var dstName = method.TargetType.ToDisplayString(symbolDisplayFormat);
-
-            sb.AppendLine($"        public partial {dstName} {method.MethodName}({srcName} source)");
+            method.MethodName = method.IsReverse ? method.MethodName.Replace("Reverse", string.Empty) : method.MethodName;
+            if (method.IsReverse)
+            {
+                sb.AppendLine($"        partial void BeforeMap({srcName} source, {dstName} dest);"); // Nota i tipi invertiti
+                sb.AppendLine($"        partial void AfterMap({srcName} source, {dstName} dest);");
+                sb.AppendLine($"        public {dstName} {method.MethodName}({srcName} source)");
+            }
+            else
+            {
+                sb.AppendLine($"        partial void BeforeMap({srcName} source, {dstName} dest);");
+                sb.AppendLine($"        partial void AfterMap({srcName} source, {dstName} dest);");
+                sb.AppendLine($"        public partial {dstName} {method.MethodName}({srcName} source)");
+            }
             sb.AppendLine("        {");
             sb.AppendLine("            if (source is null) return default!;");
             sb.AppendLine($"            var dest = new {dstName}();");
-
+            sb.AppendLine("             BeforeMap(source, dest);");
             var srcProps = method.SourceType.GetMembers()
-                .OfType<IPropertySymbol>()
-                .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
+            .OfType<IPropertySymbol>()
+            .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
 
             var dstProps = method.TargetType.GetMembers()
                 .OfType<IPropertySymbol>()
@@ -160,13 +201,29 @@ public sealed class MapperGenerator : IIncrementalGenerator
 
             foreach (var dp in dstProps)
             {
-                var sp = srcProps.FirstOrDefault(p => p.Name == dp.Name);
+                if (HasAttribute(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapIgnoreAttribute"))
+                {
+                    continue;
+                }
+
+                string srcPropName = dp.Name;
+
+                var customSource = GetMapPropertySource(dp, "Lanz.MapWeaver.Abstraction.Attributes.MapPropertyAttribute");
+
+                if(!string.IsNullOrEmpty(customSource))
+                {
+                    srcPropName = customSource!;
+                }
+
+                var sp = TryResolvePropertyPath(method.SourceType, srcPropName);
                 if (sp is not null)
                 {
+                    string accessExpression = BuildSafeAccessExpression("source", srcPropName);
                     if (SymbolEqualityComparer.Default.Equals(sp.Type, dp.Type)) {
-                        sb.AppendLine($"            dest.{dp.Name} = source.{sp.Name};");
+                        sb.AppendLine($"            dest.{dp.Name} = {accessExpression};");
                     }
-                    else {
+                    else
+                    {
                         if (TryGetCollectionElementType(sp.Type, out var srcItemType) &&
                             TryGetCollectionElementType(dp.Type, out var dstItemType))
                         {
@@ -195,7 +252,7 @@ public sealed class MapperGenerator : IIncrementalGenerator
                                 sb.AppendLine(".ToList(); // Warning: Defaulting to List");
                             }
                         }
-                        else  if (!IsPrimitiveOrString(sp.Type))
+                        else if (!IsPrimitiveOrString(sp.Type))
                         {
                             var destType = dp.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
@@ -210,8 +267,10 @@ public sealed class MapperGenerator : IIncrementalGenerator
             }
 
             sb.AppendLine();
+            sb.AppendLine($"            AfterMap(source, dest);");
             sb.AppendLine("            return dest;");
             sb.AppendLine("        }");
+
         }
 
         // 2. Generazione dei metodi generici di IMapper (Dispatch logic)
@@ -414,6 +473,67 @@ public sealed class MapperGenerator : IIncrementalGenerator
         }
 
         return false;
+    }
+
+    private static bool HasAttribute(ISymbol symbol, string attributeFullName)
+    {
+        return symbol.GetAttributes()
+            .Any(attr => attr.AttributeClass?.ToDisplayString() == attributeFullName);
+    }
+
+    private static string? GetMapPropertySource(ISymbol symbol, string attributeFullName)
+    {
+        var attr = symbol.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == attributeFullName);
+        
+        if(attr is null) return null;
+
+        if (attr.ConstructorArguments.Length > 0)
+        {
+            return attr.ConstructorArguments[0].Value?.ToString() ?? string.Empty;
+        }
+        return null;
+    }
+
+    private static IPropertySymbol? TryResolvePropertyPath(ITypeSymbol rootType, string path)
+    {
+        var parts = path.Split('.');
+        ITypeSymbol currentType = rootType;
+        IPropertySymbol? currentProp = null;
+
+        foreach (var part in parts)
+        {
+            // Cerca la proprietà nel tipo corrente
+            currentProp = currentType.GetMembers()
+                .OfType<IPropertySymbol>()
+                .FirstOrDefault(p => p.Name == part && p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
+
+            if (currentProp == null) return null; // Path interrotto
+
+            currentType = currentProp.Type;
+        }
+
+        return currentProp; // Ritorna l'ultima proprietà della catena (es. City)
+    }
+
+    private static string BuildSafeAccessExpression(string rootParamName, string path)
+    {
+        var parts = path.Split('.');
+        if (parts.Length == 1) return $"{rootParamName}.{parts[0]}";
+
+        var sb = new StringBuilder(rootParamName);
+        for (int i = 0; i < parts.Length; i++)
+        {
+            sb.Append($".{parts[i]}");
+            // Aggiungi null conditional operator '?' per tutti tranne l'ultimo
+            // (o anche per l'ultimo se la proprietà finale è nullable e serve)
+            // Per sicurezza, lo mettiamo su tutti i nodi intermedi.
+            if (i < parts.Length - 1)
+            {
+                sb.Append("?");
+            }
+        }
+        return sb.ToString();
     }
 
 

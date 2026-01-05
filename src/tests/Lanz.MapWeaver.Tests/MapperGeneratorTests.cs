@@ -112,6 +112,82 @@ namespace TestNamespace
     }
 
     [Fact]
+    public void ShouldSkipDestinationPropertiesMarkedWithMapIgnoreAttribute()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Source
+    {
+        public string Name { get; set; }
+        public string Secret { get; set; }
+    }
+
+    public class Dest
+    {
+        public string Name { get; set; }
+        [MapIgnore]
+        public string Secret { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class MyMapper
+    {
+        [MapTypes(typeof(Source), typeof(Dest))]
+        public partial Dest Map(Source source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class MyMapper"));
+
+        Assert.Contains("dest.Name = source.Name;", mapperSource);
+        Assert.DoesNotContain("dest.Secret", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldNotSkipPropertiesWhenDifferentMapIgnoreAttributeIsUsed()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace Custom
+{
+    [AttributeUsage(AttributeTargets.Property)]
+    public sealed class MapIgnoreAttribute : Attribute { }
+}
+
+namespace TestNamespace
+{
+    public class Source
+    {
+        public string Name { get; set; }
+        public string Secret { get; set; }
+    }
+
+    public class Dest
+    {
+        public string Name { get; set; }
+        [Custom.MapIgnore]
+        public string Secret { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class MyMapper
+    {
+        [MapTypes(typeof(Source), typeof(Dest))]
+        public partial Dest Map(Source source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class MyMapper"));
+
+        Assert.Contains("dest.Secret = source.Secret;", mapperSource);
+    }
+
+    [Fact]
     public void ShouldGenerateNestedMappingCallsForReferenceTypes()
     {
         var source = @"
@@ -320,5 +396,141 @@ namespace TestNamespace
         var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
 
         Assert.Contains("dest.Addresses = source.Addresses?.Select(item => imapper.Map<global::TestNamespace.AddressDto>(item)).ToList(); // Warning: Defaulting to List", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldMapDestinationPropertiesMarkedWithMapPropertyAttributePaths()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Country { public string Name { get; set; } }
+    public class Address { public Country Country { get; set; } }
+
+    public class User
+    {
+        public Address Address { get; set; }
+    }
+
+    public class UserDto
+    {
+        [MapProperty(""Address.Country.Name"")]
+        public string CountryName { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("dest.CountryName = source.Address?.Country?.Name;", mapperSource);
+        Assert.DoesNotContain("dest.CountryName = source.CountryName;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldNotGenerateAssignmentWhenMapPropertyPathCannotBeResolved()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class Address { public string City { get; set; } }
+
+    public class User { public Address Address { get; set; } }
+
+    public class UserDto
+    {
+        [MapProperty(""Address.Country.Name"")]
+        public string CountryName { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.DoesNotContain("dest.CountryName =", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateBeforeAndAfterHooksForForwardMappings()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("partial void BeforeMap(global::TestNamespace.User source, global::TestNamespace.UserDto dest);", mapperSource);
+        Assert.Contains("partial void AfterMap(global::TestNamespace.User source, global::TestNamespace.UserDto dest);", mapperSource);
+        Assert.Contains("BeforeMap(source, dest);", mapperSource);
+        Assert.Contains("AfterMap(source, dest);", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldGenerateBeforeAndAfterHooksForReverseMappings()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto), true)]
+        public partial UserDto Map(User source);
+    }
+}";
+        var (_, generatedSources) = TestHelper.GetGeneratedOutput(source);
+        var mapperSource = generatedSources.Single(s => s.Contains("partial class UserMapper"));
+
+        Assert.Contains("partial void BeforeMap(global::TestNamespace.UserDto source, global::TestNamespace.User dest);", mapperSource);
+        Assert.Contains("partial void AfterMap(global::TestNamespace.UserDto source, global::TestNamespace.User dest);", mapperSource);
+        Assert.Contains("public global::TestNamespace.User Map(global::TestNamespace.UserDto source)", mapperSource);
+        Assert.Contains("BeforeMap(source, dest);", mapperSource);
+        Assert.Contains("AfterMap(source, dest);", mapperSource);
     }
 }
