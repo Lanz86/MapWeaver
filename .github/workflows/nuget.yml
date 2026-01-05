@@ -1,0 +1,36 @@
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+      # Step che determina se è prerelease guardando se c'è un trattino nel tag
+      - name: Determine if Prerelease
+        id: check_prerelease
+        run: |
+          if [[ "${{ github.ref_name }}" == *"-"* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Pack
+        run: dotnet pack ./src/Lanz.MapWeaver.Abstraction/Lanz.MapWeaver.Abstraction.csproj -c Release -p:PackageVersion=${{ github.ref_name }} --output ./artifacts
+      - name: Pack
+        run: dotnet pack ./src/Lanz.MapWeaver.Generator/Lanz.MapWeaver.Generator.csproj -c Release -p:PackageVersion=${{ github.ref_name }} --output ./artifacts
+       
+      - name: Push to NuGet
+        run: dotnet nuget push "./artifacts/*.nupkg" -k "${{ secrets.NUGET_API_KEY }}" -s "https://api.nuget.org/v3/index.json"
