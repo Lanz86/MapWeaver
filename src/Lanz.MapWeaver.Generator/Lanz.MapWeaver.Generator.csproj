@@ -19,6 +19,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Lanz.MapWeaver.Abstraction\Lanz.MapWeaver.Abstraction.csproj" />
+	  <ProjectReference Include="..\Lanz.MapWeaver.Abstraction\Lanz.MapWeaver.Abstraction.csproj" PrivateAssets="all" GeneratePathProperty="true" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(PkgLanz_MapWeaver_Abstraction)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 </Project>
