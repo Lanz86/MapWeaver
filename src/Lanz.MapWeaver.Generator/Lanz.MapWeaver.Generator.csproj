@@ -11,6 +11,7 @@
 	  <OutputItemType>Analyzer</OutputItemType>
 	  <IncludeBuildOutput>false</IncludeBuildOutput>
 	  <IsRoslynComponent>true</IsRoslynComponent>
+	  <IsPackable>true</IsPackable>
   </PropertyGroup>
 
 	<ItemGroup>

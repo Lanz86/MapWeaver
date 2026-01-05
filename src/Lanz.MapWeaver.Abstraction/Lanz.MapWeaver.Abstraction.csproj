@@ -9,6 +9,7 @@
 	  <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
 	  <OutputItemType>Analyzer</OutputItemType>
 	  <IncludeBuildOutput>false</IncludeBuildOutput>
+	  <IsPackable>true</IsPackable>
   </PropertyGroup>
 
 </Project>
