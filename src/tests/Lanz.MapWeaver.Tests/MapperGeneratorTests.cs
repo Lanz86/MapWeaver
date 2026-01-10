@@ -533,4 +533,325 @@ namespace TestNamespace
         Assert.Contains("BeforeMap(source, dest);", mapperSource);
         Assert.Contains("AfterMap(source, dest);", mapperSource);
     }
+
+    [Fact]
+    public void ShouldMapFlattenedPropertiesAutomatically()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class Address
+    {
+        public string City { get; set; }
+        public string Street { get; set; }
+        public string ZipCode { get; set; }
+    }
+
+    public class User
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public Address HomeAddress { get; set; }
+    }
+
+    public class UserDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string HomeAddressCity { get; set; }
+        public string HomeAddressStreet { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Direct properties should be mapped
+        Assert.Contains("dest.Id = source.Id;", mapperSource);
+        Assert.Contains("dest.Name = source.Name;", mapperSource);
+
+        // Flattened properties should be automatically mapped with null-safe navigation
+        Assert.Contains("dest.HomeAddressCity = source.HomeAddress?.City;", mapperSource);
+        Assert.Contains("dest.HomeAddressStreet = source.HomeAddress?.Street;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldMapMultiLevelFlattenedProperties()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class Country
+    {
+        public string Name { get; set; }
+        public string Code { get; set; }
+    }
+
+    public class Address
+    {
+        public string City { get; set; }
+        public Country Country { get; set; }
+    }
+
+    public class User
+    {
+        public int Id { get; set; }
+        public Address HomeAddress { get; set; }
+    }
+
+    public class UserDto
+    {
+        public int Id { get; set; }
+        public string HomeAddressCityName { get; set; }
+        public string HomeAddressCountryName { get; set; }
+        public string HomeAddressCountryCode { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Multi-level flattened properties should be mapped
+        Assert.Contains("dest.HomeAddressCountryName = source.HomeAddress?.Country?.Name;", mapperSource);
+        Assert.Contains("dest.HomeAddressCountryCode = source.HomeAddress?.Country?.Code;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldPreferDirectMatchOverFlattenedMatch()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class Address
+    {
+        public string City { get; set; }
+    }
+
+    public class User
+    {
+        public int Id { get; set; }
+        public string City { get; set; }
+        public Address HomeAddress { get; set; }
+    }
+
+    public class UserDto
+    {
+        public int Id { get; set; }
+        public string City { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Direct match should be preferred (no null-conditional operator)
+        Assert.Contains("dest.City = source.City;", mapperSource);
+        
+        // Should NOT use the flattened HomeAddress.City
+        Assert.DoesNotContain("dest.City = source.HomeAddress?.City;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldApplyStringFallbackValue()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        [MapWithFallback(""Unknown"")]
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Fallback value should be applied using null-coalescing operator
+        Assert.Contains("dest.Name = source.Name ?? \"Unknown\";", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldApplyNumericFallbackValue()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class Product
+    {
+        public int? Quantity { get; set; }
+        public decimal? Price { get; set; }
+    }
+
+    public class ProductDto
+    {
+        [MapWithFallback(0)]
+        public int? Quantity { get; set; }
+        
+        [MapWithFallback(9.99)]
+        public decimal? Price { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class ProductMapper
+    {
+        [MapTypes(typeof(Product), typeof(ProductDto))]
+        public partial ProductDto Map(Product source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class ProductMapper"));
+
+        // Numeric fallback values should be applied
+        Assert.Contains("dest.Quantity = source.Quantity ?? 0;", mapperSource);
+        Assert.Contains("dest.Price = source.Price ?? 9.99m;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldApplyBooleanFallbackValue()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public bool? IsActive { get; set; }
+    }
+
+    public class UserDto
+    {
+        [MapWithFallback(true)]
+        public bool? IsActive { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Boolean fallback value should be applied
+        Assert.Contains("dest.IsActive = source.IsActive ?? true;", mapperSource);
+    }
+
+    [Fact]
+    public void ShouldNotApplyFallbackWhenAttributeNotPresent()
+    {
+        var source = @"
+using Lanz.MapWeaver.Abstraction.Attributes;
+using System;
+
+namespace TestNamespace
+{
+    public class User
+    {
+        public string Name { get; set; }
+    }
+
+    public class UserDto
+    {
+        public string Name { get; set; }
+    }
+
+    [GenerateMapper]
+    public partial class UserMapper
+    {
+        [MapTypes(typeof(User), typeof(UserDto))]
+        public partial UserDto Map(User source);
+    }
+}";
+
+        var (diagnostics, generatedSources) = TestHelper.GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.NotEmpty(generatedSources);
+
+        var mapperSource = generatedSources.First(s => s.Contains("partial class UserMapper"));
+
+        // Regular mapping without fallback
+        Assert.Contains("dest.Name = source.Name;", mapperSource);
+        Assert.DoesNotContain("??", mapperSource);
+    }
 }
+

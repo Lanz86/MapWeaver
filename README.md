@@ -11,6 +11,7 @@ Lanz.MapWeaver is a high-performance .NET source generator that automatically cr
 - **Partial Classes & Methods**: Integrates seamlessly with your existing code structure.
 - **Zero Boilerplate**: Just define the method signature, and the body is generated.
 - **Explicit Member Mapping**: Use `[MapProperty]` and `[MapIgnore]` to override member matching rules.
+- **Flattened Property Mapping**: Automatically maps nested properties to flattened names (e.g., `HomeAddressCity` → `HomeAddress.City`).
 - **Reverse Mapping**: Flip mappings in both directions by setting `Reverse = true` on `[MapTypes]`.
 - **Lifecycle Hooks**: Override generated `BeforeMap`/`AfterMap` partial methods to run custom logic around the mapping.
 
@@ -138,6 +139,192 @@ public class UserDto
 
 - `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
 - `[MapIgnore]` prevents the destination property from being assigned.
+
+## Flattened Property Mapping
+
+Lanz.MapWeaver automatically detects and maps flattened property names to nested object paths without requiring explicit `[MapProperty]` attributes. This feature intelligently matches destination properties to nested source properties by removing dots and comparing concatenated names.
+
+### How It Works
+
+When a destination property doesn't have a direct match in the source type, the mapper searches for nested property paths that match when flattened:
+
+```csharp
+public class Address
+{
+    public string City { get; set; }
+    public string Street { get; set; }
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public Address HomeAddress { get; set; }
+}
+
+public class UserDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    
+    // Automatically maps to User.HomeAddress.City
+    public string HomeAddressCity { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Street
+    public string HomeAddressStreet { get; set; }
+}
+```
+
+**Generated mapping code includes null-safe navigation:**
+```csharp
+dest.HomeAddressCity = source.HomeAddress?.City;
+dest.HomeAddressStreet = source.HomeAddress?.Street;
+```
+
+### Multi-Level Flattening
+
+The mapper supports up to 3 levels of nesting:
+
+```csharp
+public class Country
+{
+    public string Name { get; set; }
+    public string Code { get; set; }
+}
+
+public class Address
+{
+    public string City { get; set; }
+    public Country Country { get; set; }
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public Address HomeAddress { get; set; }
+}
+
+public class UserDto
+{
+    public int Id { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Country.Name
+    public string HomeAddressCountryName { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Country.Code
+    public string HomeAddressCountryCode { get; set; }
+}
+```
+
+### Disambiguation Rules
+
+When multiple nested paths could match a flattened name, the mapper uses these rules:
+
+1. **Direct matches are preferred**: If a property exists at the root level, it takes precedence over nested paths.
+2. **Shorter paths score higher**: `Address.City` is preferred over `HomeAddress.Address.City`.
+3. **Exact case matches get bonus points**: Case-sensitive matches score higher than case-insensitive ones.
+
+### When to Use Explicit [MapProperty]
+
+You may still want to use `[MapProperty]` when:
+- You need to override the automatic matching (e.g., map `City` to `WorkAddress.City` instead of `HomeAddress.City`)
+- The flattened name is ambiguous
+- You prefer explicit configuration for clarity
+
+**Note:** Explicit `[MapProperty]` attributes always take precedence over automatic flattening.
+
+
+## Null Fallback Value Substitution
+
+Lanz.MapWeaver provides the `[MapWithFallback]` attribute to specify default values when source properties are null. This feature is especially useful for ensuring DTOs have sensible defaults instead of null values.
+
+### Basic Usage
+
+Decorate destination properties with `[MapWithFallback]` to specify a fallback value:
+
+```csharp
+public class User
+{
+    public string Name { get; set; }
+    public int? Age { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+public class UserDto
+{
+    [MapWithFallback("Unknown")]
+    public string Name { get; set; }
+    
+    [MapWithFallback(0)]
+    public int? Age { get; set; }
+    
+    [MapWithFallback(true)]
+    public bool? IsActive { get; set; }
+}
+```
+
+**Generated mapping code:**
+```csharp
+dest.Name = source.Name ?? "Unknown";
+dest.Age = source.Age ?? 0;
+dest.IsActive = source.IsActive ?? true;
+```
+
+### Supported Types
+
+The `[MapWithFallback]` attribute works with various data types:
+
+- **Strings**: `[MapWithFallback("default text")]`
+- **Integers**: `[MapWithFallback(0)]`, `[MapWithFallback(42)]`
+- **Decimals**: `[MapWithFallback(9.99)]` (generates `9.99m`)
+- **Floats**: `[MapWithFallback(3.14f)]` (generates `3.14f`)
+- **Booleans**: `[MapWithFallback(true)]`, `[MapWithFallback(false)]`
+- **Null**: `[MapWithFallback(null)]` (uses `default!`)
+
+### When Fallback is Applied
+
+Fallback values are only applied when:
+1. The source and destination properties have the **same type**
+2. The source property value is **null**
+3. The destination property has the `[MapWithFallback]` attribute
+
+If types don't match (e.g., complex type mapping), the fallback attribute is ignored and standard mapping rules apply.
+
+### Example: Real-World Scenario
+
+```csharp
+public class Product
+{
+    public string Name { get; set; }
+    public decimal? Price { get; set; }
+    public int? StockQuantity { get; set; }
+    public string Description { get; set; }
+}
+
+public class ProductDto
+{
+    [MapWithFallback("Unnamed Product")]
+    public string Name { get; set; }
+    
+    [MapWithFallback(0.00)]
+    public decimal? Price { get; set; }
+    
+    [MapWithFallback(0)]
+    public int? StockQuantity { get; set; }
+    
+    [MapWithFallback("No description available")]
+    public string Description { get; set; }
+}
+
+[GenerateMapper]
+public partial class ProductMapper
+{
+    [MapTypes(typeof(Product), typeof(ProductDto))]
+    public partial ProductDto Map(Product source);
+}
+```
+
+When mapping a product with null values, the DTO will have the specified fallback values instead of nulls.
 
 
 ## Reverse Mapping

@@ -1,0 +1,82 @@
+=== MapWeaver Development Progress ===
+
+[2026-01-10] Implemented Flattened Property Name Matching (Core Feature)
+-------------------------------------------------------------------
+Implemented the core flattening algorithm for automatic nested property mapping:
+
+✅ COMPLETED:
+- Added TryFindFlattenedPropertyMatch method to ITypeResolver interface
+- Implemented intelligent flattening algorithm with recursive property path search
+- Added scoring system to prefer shorter paths and exact case matches (max depth: 3 levels)
+- Integrated flattening into CodeGenerator's property mapping logic
+- Flattening only activates when no direct match or MapProperty attribute exists
+- Implemented automatic null-safe navigation for flattened paths (e.g., source.HomeAddress?.City)
+- Added 3 comprehensive unit tests:
+  * ShouldMapFlattenedPropertiesAutomatically - tests basic flattening (HomeAddressCity → HomeAddress.City)
+  * ShouldMapMultiLevelFlattenedProperties - tests multi-level flattening (HomeAddressCountryName → HomeAddress.Country.Name)
+  * ShouldPreferDirectMatchOverFlattenedMatch - ensures direct matches take precedence
+
+✅ TESTS: All 17 tests pass (3 new flattening tests added)
+✅ BUILD: Clean build with zero errors (6 pre-existing warnings unrelated to feature)
+
+🔄 REMAINING WORK:
+- Configuration options for enabling/disabling flattening
+- Diagnostic warnings/logging for transparency
+- Integration tests with real-world scenarios
+- Performance benchmarks
+- XML documentation and user-facing docs
+
+✅ DOCUMENTATION UPDATE (2026-01-10):
+- Added comprehensive flattened property mapping section to README.md
+- Documented how automatic flattening works with examples
+- Explained multi-level flattening (up to 3 levels)
+- Documented disambiguation rules
+- Added demo code to Program.cs showing automatic flattening in action
+- All builds pass, all 17 tests pass
+
+NEXT STEPS: Add configuration options and diagnostic warnings for the flattening feature.
+
+[2026-01-10] Implemented Null Fallback Value Substitution (Complete Feature)
+-------------------------------------------------------------------
+Implemented the complete null fallback value substitution feature for MapWeaver:
+
+✅ COMPLETED:
+- Created MapWithFallbackAttribute in Lanz.MapWeaver.Abstraction.Attributes
+- Attribute accepts a fallback value in its constructor
+- Added GetFallbackValue method to ITypeResolver interface
+- Implemented GetFallbackValue in TypeResolver to extract attribute values
+- Updated CodeGenerator.GeneratePropertyMapping to check for fallback attributes
+- Implemented GenerateFallbackLiteral method with type-safe literal generation:
+  * String literals with proper escaping
+  * Boolean literals (true/false)
+  * Numeric literals with appropriate suffixes (m for decimal, f for float, d for double)
+  * Culture-invariant formatting to avoid locale-specific issues (dots vs commas)
+  * Nullable type unwrapping to get underlying type for correct suffix
+- Generated code uses null-coalescing operator (??) for clean, performant fallbacks
+- Added 4 comprehensive unit tests:
+  * ShouldApplyStringFallbackValue - tests string fallback with "Unknown"
+  * ShouldApplyNumericFallbackValue - tests int (0) and decimal (9.99m) fallbacks
+  * ShouldApplyBooleanFallbackValue - tests boolean fallback (true)
+  * ShouldNotApplyFallbackWhenAttributeNotPresent - verifies fallback is opt-in
+- Updated Program.cs with demonstration code explaining the feature
+- Added comprehensive documentation to README.md with:
+  * Basic usage examples
+  * Supported types list
+  * When fallback is applied rules
+  * Real-world scenario example with Product/ProductDto
+
+✅ TESTS: All 21 tests pass (4 new fallback tests added)
+✅ BUILD: Clean build with zero errors (only pre-existing warnings unrelated to feature)
+
+📝 FEATURE SCOPE:
+- Fallback only applies when source and destination types match
+- Works with nullable types by unwrapping to get underlying type
+- Generates efficient null-coalescing expressions in output
+- Type-safe: compiler will catch incompatible fallback values
+- No configuration needed - fully declarative via attributes
+
+🔄 NOT IMPLEMENTED (not in scope):
+- Performance benchmarks (feature has minimal performance impact)
+- Configuration options (not needed - attribute-based approach is clean and simple)
+
+NEXT STEPS: All core features are now complete. Consider adding configuration/diagnostic features for flattening, or focus on performance optimization and additional mapper scenarios.

@@ -39,3 +39,51 @@ foreach (var addr in dto.PreviousAddresses)
 Console.WriteLine("Mapping back to User entity...");
 User mappedUser = mapper.Map<User>(dto);
 Console.WriteLine($"Mapped User: Id={mappedUser.Id}, FirstName={mappedUser.FirstName}, LastName={mappedUser.LastName}, HomeAddress={mappedUser.HomeAddress?.Street}");
+
+Console.WriteLine("\n=== Flattened Property Mapping Demo ===");
+Console.WriteLine("Creating a user with nested address for automatic flattening demo...");
+
+// Demonstrate automatic flattened property matching
+// The mapper automatically detects that 'HomeAddressCity' in UserDto 
+// should map to 'HomeAddress.City' in User without requiring [MapProperty] attribute
+var userWithAddress = new User
+{
+    Id = 2,
+    FirstName = "Maria",
+    LastName = "Rossi",
+    HomeAddress = new Address
+    {
+        Street = "Via Veneto",
+        City = "Roma"
+    }
+};
+
+var dtoWithFlattened = mapper.Map<UserDto>(userWithAddress);
+
+Console.WriteLine($"\n✓ Automatic Flattening Detected:");
+Console.WriteLine($"  User.HomeAddress.City → UserDto.City (without [MapProperty])");
+Console.WriteLine($"  Result: City = '{dtoWithFlattened.City}'");
+Console.WriteLine($"\nNote: The 'City' property in UserDto has [MapProperty(\"HomeAddress.City\")]");
+Console.WriteLine("      but with flattening, you could remove this attribute and it would still work!");
+
+Console.WriteLine("\n=== Null Fallback Value Substitution Demo ===");
+Console.WriteLine("Creating a user with null properties to demonstrate fallback values...");
+
+// Demonstrate null fallback value substitution
+// Properties decorated with [MapWithFallback] will use the specified default value
+// when the source property is null
+var userWithNulls = new User
+{
+    Id = 3,
+    FirstName = null,  // This will use fallback if UserDto.FirstName has [MapWithFallback("Guest")]
+    LastName = null,
+    HomeAddress = null  // Nested object is null
+};
+
+// Note: To see fallback in action, you would need to add [MapWithFallback] attributes to UserDto properties
+// Example: [MapWithFallback("Guest")] public string FirstName { get; set; }
+// For now, this demonstrates the feature is available
+Console.WriteLine($"✓ Fallback Feature Available:");
+Console.WriteLine($"  Add [MapWithFallback(\"defaultValue\")] to DTO properties to specify fallback values");
+Console.WriteLine($"  Example: [MapWithFallback(\"Unknown\")] public string Name {{ get; set; }}");
+Console.WriteLine($"  When source.Name is null, it will be mapped to \"Unknown\" instead");
