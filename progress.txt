@@ -1,0 +1,37 @@
+=== MapWeaver Development Progress ===
+
+[2026-01-10] Implemented Flattened Property Name Matching (Core Feature)
+-------------------------------------------------------------------
+Implemented the core flattening algorithm for automatic nested property mapping:
+
+✅ COMPLETED:
+- Added TryFindFlattenedPropertyMatch method to ITypeResolver interface
+- Implemented intelligent flattening algorithm with recursive property path search
+- Added scoring system to prefer shorter paths and exact case matches (max depth: 3 levels)
+- Integrated flattening into CodeGenerator's property mapping logic
+- Flattening only activates when no direct match or MapProperty attribute exists
+- Implemented automatic null-safe navigation for flattened paths (e.g., source.HomeAddress?.City)
+- Added 3 comprehensive unit tests:
+  * ShouldMapFlattenedPropertiesAutomatically - tests basic flattening (HomeAddressCity → HomeAddress.City)
+  * ShouldMapMultiLevelFlattenedProperties - tests multi-level flattening (HomeAddressCountryName → HomeAddress.Country.Name)
+  * ShouldPreferDirectMatchOverFlattenedMatch - ensures direct matches take precedence
+
+✅ TESTS: All 17 tests pass (3 new flattening tests added)
+✅ BUILD: Clean build with zero errors (6 pre-existing warnings unrelated to feature)
+
+🔄 REMAINING WORK:
+- Configuration options for enabling/disabling flattening
+- Diagnostic warnings/logging for transparency
+- Integration tests with real-world scenarios
+- Performance benchmarks
+- XML documentation and user-facing docs
+
+✅ DOCUMENTATION UPDATE (2026-01-10):
+- Added comprehensive flattened property mapping section to README.md
+- Documented how automatic flattening works with examples
+- Explained multi-level flattening (up to 3 levels)
+- Documented disambiguation rules
+- Added demo code to Program.cs showing automatic flattening in action
+- All builds pass, all 17 tests pass
+
+NEXT STEPS: Add configuration options and diagnostic warnings for the flattening feature.

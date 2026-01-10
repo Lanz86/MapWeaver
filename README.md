@@ -11,6 +11,7 @@ Lanz.MapWeaver is a high-performance .NET source generator that automatically cr
 - **Partial Classes & Methods**: Integrates seamlessly with your existing code structure.
 - **Zero Boilerplate**: Just define the method signature, and the body is generated.
 - **Explicit Member Mapping**: Use `[MapProperty]` and `[MapIgnore]` to override member matching rules.
+- **Flattened Property Mapping**: Automatically maps nested properties to flattened names (e.g., `HomeAddressCity` → `HomeAddress.City`).
 - **Reverse Mapping**: Flip mappings in both directions by setting `Reverse = true` on `[MapTypes]`.
 - **Lifecycle Hooks**: Override generated `BeforeMap`/`AfterMap` partial methods to run custom logic around the mapping.
 
@@ -138,6 +139,99 @@ public class UserDto
 
 - `[MapProperty]` accepts the source property name or a dotted path (e.g. `HomeAddress.City`). The generator produces null-safe accessors for nested paths.
 - `[MapIgnore]` prevents the destination property from being assigned.
+
+## Flattened Property Mapping
+
+Lanz.MapWeaver automatically detects and maps flattened property names to nested object paths without requiring explicit `[MapProperty]` attributes. This feature intelligently matches destination properties to nested source properties by removing dots and comparing concatenated names.
+
+### How It Works
+
+When a destination property doesn't have a direct match in the source type, the mapper searches for nested property paths that match when flattened:
+
+```csharp
+public class Address
+{
+    public string City { get; set; }
+    public string Street { get; set; }
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public Address HomeAddress { get; set; }
+}
+
+public class UserDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    
+    // Automatically maps to User.HomeAddress.City
+    public string HomeAddressCity { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Street
+    public string HomeAddressStreet { get; set; }
+}
+```
+
+**Generated mapping code includes null-safe navigation:**
+```csharp
+dest.HomeAddressCity = source.HomeAddress?.City;
+dest.HomeAddressStreet = source.HomeAddress?.Street;
+```
+
+### Multi-Level Flattening
+
+The mapper supports up to 3 levels of nesting:
+
+```csharp
+public class Country
+{
+    public string Name { get; set; }
+    public string Code { get; set; }
+}
+
+public class Address
+{
+    public string City { get; set; }
+    public Country Country { get; set; }
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public Address HomeAddress { get; set; }
+}
+
+public class UserDto
+{
+    public int Id { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Country.Name
+    public string HomeAddressCountryName { get; set; }
+    
+    // Automatically maps to User.HomeAddress.Country.Code
+    public string HomeAddressCountryCode { get; set; }
+}
+```
+
+### Disambiguation Rules
+
+When multiple nested paths could match a flattened name, the mapper uses these rules:
+
+1. **Direct matches are preferred**: If a property exists at the root level, it takes precedence over nested paths.
+2. **Shorter paths score higher**: `Address.City` is preferred over `HomeAddress.Address.City`.
+3. **Exact case matches get bonus points**: Case-sensitive matches score higher than case-insensitive ones.
+
+### When to Use Explicit [MapProperty]
+
+You may still want to use `[MapProperty]` when:
+- You need to override the automatic matching (e.g., map `City` to `WorkAddress.City` instead of `HomeAddress.City`)
+- The flattened name is ambiguous
+- You prefer explicit configuration for clarity
+
+**Note:** Explicit `[MapProperty]` attributes always take precedence over automatic flattening.
 
 
 ## Reverse Mapping

@@ -41,4 +41,14 @@ public interface ITypeResolver
     /// Builds a safe null-conditional access expression for a property path.
     /// </summary>
     string BuildSafeAccessExpression(string rootParamName, string path);
+
+    /// <summary>
+    /// Attempts to find a flattened property match for a destination property name.
+    /// For example, "UserCity" might match "User.City" or "AddressCity" might match "Address.City".
+    /// </summary>
+    /// <param name="sourceType">The source type to search.</param>
+    /// <param name="flattenedName">The flattened property name to match.</param>
+    /// <param name="matchedPath">The matched property path if found.</param>
+    /// <returns>True if a match was found; otherwise false.</returns>
+    bool TryFindFlattenedPropertyMatch(ITypeSymbol sourceType, string flattenedName, out string? matchedPath);
 }

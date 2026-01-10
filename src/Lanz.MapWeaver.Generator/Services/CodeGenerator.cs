@@ -148,6 +148,17 @@ public sealed class CodeGenerator : ICodeGenerator
             }
 
             var sp = _typeResolver.TryResolvePropertyPath(method.SourceType, srcPropName);
+            
+            // If no direct match found, try flattened property matching
+            if (sp is null && string.IsNullOrEmpty(customSource))
+            {
+                if (_typeResolver.TryFindFlattenedPropertyMatch(method.SourceType, dp.Name, out var flattenedPath))
+                {
+                    srcPropName = flattenedPath!;
+                    sp = _typeResolver.TryResolvePropertyPath(method.SourceType, srcPropName);
+                }
+            }
+            
             if (sp is not null)
             {
                 GeneratePropertyMapping(sb, sp, dp, srcPropName);
