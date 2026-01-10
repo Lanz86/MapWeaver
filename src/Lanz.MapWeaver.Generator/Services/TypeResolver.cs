@@ -185,4 +185,21 @@ public sealed class TypeResolver : ITypeResolver
             }
         }
     }
+
+    /// <inheritdoc/>
+    public object? GetFallbackValue(ISymbol symbol, string attributeFullName)
+    {
+        var attr = symbol.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == attributeFullName);
+        
+        if (attr is null) 
+            return null;
+
+        if (attr.ConstructorArguments.Length > 0)
+        {
+            return attr.ConstructorArguments[0].Value;
+        }
+        
+        return null;
+    }
 }

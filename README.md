@@ -234,6 +234,99 @@ You may still want to use `[MapProperty]` when:
 **Note:** Explicit `[MapProperty]` attributes always take precedence over automatic flattening.
 
 
+## Null Fallback Value Substitution
+
+Lanz.MapWeaver provides the `[MapWithFallback]` attribute to specify default values when source properties are null. This feature is especially useful for ensuring DTOs have sensible defaults instead of null values.
+
+### Basic Usage
+
+Decorate destination properties with `[MapWithFallback]` to specify a fallback value:
+
+```csharp
+public class User
+{
+    public string Name { get; set; }
+    public int? Age { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+public class UserDto
+{
+    [MapWithFallback("Unknown")]
+    public string Name { get; set; }
+    
+    [MapWithFallback(0)]
+    public int? Age { get; set; }
+    
+    [MapWithFallback(true)]
+    public bool? IsActive { get; set; }
+}
+```
+
+**Generated mapping code:**
+```csharp
+dest.Name = source.Name ?? "Unknown";
+dest.Age = source.Age ?? 0;
+dest.IsActive = source.IsActive ?? true;
+```
+
+### Supported Types
+
+The `[MapWithFallback]` attribute works with various data types:
+
+- **Strings**: `[MapWithFallback("default text")]`
+- **Integers**: `[MapWithFallback(0)]`, `[MapWithFallback(42)]`
+- **Decimals**: `[MapWithFallback(9.99)]` (generates `9.99m`)
+- **Floats**: `[MapWithFallback(3.14f)]` (generates `3.14f`)
+- **Booleans**: `[MapWithFallback(true)]`, `[MapWithFallback(false)]`
+- **Null**: `[MapWithFallback(null)]` (uses `default!`)
+
+### When Fallback is Applied
+
+Fallback values are only applied when:
+1. The source and destination properties have the **same type**
+2. The source property value is **null**
+3. The destination property has the `[MapWithFallback]` attribute
+
+If types don't match (e.g., complex type mapping), the fallback attribute is ignored and standard mapping rules apply.
+
+### Example: Real-World Scenario
+
+```csharp
+public class Product
+{
+    public string Name { get; set; }
+    public decimal? Price { get; set; }
+    public int? StockQuantity { get; set; }
+    public string Description { get; set; }
+}
+
+public class ProductDto
+{
+    [MapWithFallback("Unnamed Product")]
+    public string Name { get; set; }
+    
+    [MapWithFallback(0.00)]
+    public decimal? Price { get; set; }
+    
+    [MapWithFallback(0)]
+    public int? StockQuantity { get; set; }
+    
+    [MapWithFallback("No description available")]
+    public string Description { get; set; }
+}
+
+[GenerateMapper]
+public partial class ProductMapper
+{
+    [MapTypes(typeof(Product), typeof(ProductDto))]
+    public partial ProductDto Map(Product source);
+}
+```
+
+When mapping a product with null values, the DTO will have the specified fallback values instead of nulls.
+
+
 ## Reverse Mapping
 
 Add `Reverse = true` (or pass `true` as the third constructor argument) on any `[MapTypes]` declaration to emit the inverse mapping method automatically:

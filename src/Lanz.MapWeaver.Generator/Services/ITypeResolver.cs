@@ -51,4 +51,12 @@ public interface ITypeResolver
     /// <param name="matchedPath">The matched property path if found.</param>
     /// <returns>True if a match was found; otherwise false.</returns>
     bool TryFindFlattenedPropertyMatch(ITypeSymbol sourceType, string flattenedName, out string? matchedPath);
+
+    /// <summary>
+    /// Gets the fallback value from MapWithFallback attribute if present.
+    /// </summary>
+    /// <param name="symbol">The symbol to check for the attribute.</param>
+    /// <param name="attributeFullName">The full name of the MapWithFallback attribute.</param>
+    /// <returns>The fallback value if the attribute is present; otherwise null.</returns>
+    object? GetFallbackValue(ISymbol symbol, string attributeFullName);
 }

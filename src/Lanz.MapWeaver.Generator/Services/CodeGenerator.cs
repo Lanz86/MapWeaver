@@ -1,6 +1,7 @@
 using Lanz.MapWeaver.Generator.Models;
 using Microsoft.CodeAnalysis;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 
 namespace Lanz.MapWeaver.Generator.Services;
@@ -170,9 +171,21 @@ public sealed class CodeGenerator : ICodeGenerator
     {
         string accessExpression = _typeResolver.BuildSafeAccessExpression("source", srcPropName);
         
+        // Check for fallback attribute
+        var fallbackValue = _typeResolver.GetFallbackValue(destProperty, "Lanz.MapWeaver.Abstraction.Attributes.MapWithFallbackAttribute");
+        
         if (SymbolEqualityComparer.Default.Equals(sourceProperty.Type, destProperty.Type))
         {
-            sb.AppendLine($"            dest.{destProperty.Name} = {accessExpression};");
+            if (fallbackValue is not null)
+            {
+                // Generate null-coalescing with fallback
+                string fallbackLiteral = GenerateFallbackLiteral(fallbackValue, destProperty.Type);
+                sb.AppendLine($"            dest.{destProperty.Name} = {accessExpression} ?? {fallbackLiteral};");
+            }
+            else
+            {
+                sb.AppendLine($"            dest.{destProperty.Name} = {accessExpression};");
+            }
         }
         else
         {
@@ -186,6 +199,70 @@ public sealed class CodeGenerator : ICodeGenerator
                 GenerateComplexTypeMapping(sb, sourceProperty, destProperty);
             }
         }
+    }
+
+    private string GenerateFallbackLiteral(object fallbackValue, ITypeSymbol targetType)
+    {
+        if (fallbackValue is null)
+        {
+            return "default!";
+        }
+
+        // Handle strings
+        if (fallbackValue is string str)
+        {
+            return $"\"{str.Replace("\"", "\\\"")}\"";
+        }
+
+        // Handle booleans
+        if (fallbackValue is bool b)
+        {
+            return b ? "true" : "false";
+        }
+
+        // Get underlying type if nullable
+        var underlyingType = targetType;
+        if (targetType is INamedTypeSymbol namedType && namedType.IsGenericType)
+        {
+            var typeName = namedType.ConstructedFrom.ToDisplayString();
+            if (typeName == "System.Nullable<T>")
+            {
+                underlyingType = namedType.TypeArguments[0];
+            }
+        }
+
+        // Handle decimal types - check target type for proper suffix
+        // Use InvariantCulture to ensure dots instead of commas
+        if (underlyingType.SpecialType == SpecialType.System_Decimal)
+        {
+            return $"{Convert.ToDecimal(fallbackValue).ToString(CultureInfo.InvariantCulture)}m";
+        }
+
+        if (underlyingType.SpecialType == SpecialType.System_Single)
+        {
+            return $"{Convert.ToSingle(fallbackValue).ToString(CultureInfo.InvariantCulture)}f";
+        }
+
+        if (underlyingType.SpecialType == SpecialType.System_Double)
+        {
+            return $"{Convert.ToDouble(fallbackValue).ToString(CultureInfo.InvariantCulture)}d";
+        }
+
+        // Handle numeric types
+        if (fallbackValue is int || fallbackValue is long || fallbackValue is short || 
+            fallbackValue is byte || fallbackValue is sbyte)
+        {
+            return fallbackValue.ToString()!;
+        }
+
+        // For any numeric fallback, format appropriately
+        if (fallbackValue is float || fallbackValue is double || fallbackValue is decimal)
+        {
+            return fallbackValue.ToString()!;
+        }
+
+        // Default case
+        return fallbackValue.ToString() ?? "default!";
     }
 
     private void GenerateCollectionMapping(StringBuilder sb, IPropertySymbol sourceProperty, IPropertySymbol destProperty, ITypeSymbol dstItemType)
